@@ -66,7 +66,8 @@ class Client
         $httpStatus = $this->curl->getStatus();
 
         if ($httpStatus !== 200) {
-            throw new LocalizedException(__('Gemini API request failed with status %1: %2', $httpStatus, $responseBody));
+            $errorMessage = $this->parseErrorMessage($responseBody, $httpStatus);
+            throw new LocalizedException(__('Gemini API request failed: %1', $errorMessage));
         }
 
         $response = $this->json->unserialize($responseBody);
@@ -127,5 +128,36 @@ class Client
         }
 
         return $contents;
+    }
+
+    /**
+     * Parse error message from API response
+     */
+    private function parseErrorMessage(string $responseBody, int $httpStatus): string
+    {
+        try {
+            $errorData = $this->json->unserialize($responseBody);
+
+            // Gemini error format: {"error": {"message": "...", "status": "...", "code": 400}}
+            if (isset($errorData['error']['message'])) {
+                return $errorData['error']['message'];
+            }
+
+            if (isset($errorData['error']) && is_string($errorData['error'])) {
+                return $errorData['error'];
+            }
+        } catch (\Exception $e) {
+            // If we can't parse the error, fall through to default message
+        }
+
+        return match ($httpStatus) {
+            400 => 'Bad request. Please check your input parameters.',
+            401 => 'Authentication failed. Please check your API key.',
+            403 => 'Access forbidden. Please check your API key permissions.',
+            429 => 'Too many requests. Please try again later.',
+            500 => 'Gemini service error. Please try again later.',
+            503 => 'Service temporarily unavailable. Please try again later.',
+            default => "HTTP {$httpStatus}: Unable to process request",
+        };
     }
 }

@@ -46,7 +46,8 @@ class GeminiProvider implements ProviderInterface
                 $content = $this->client->extractContent($response);
                 $responses[] = $content;
             } catch (\Exception $e) {
-                $responses[] = '';
+                $responses[] = $e->getMessage();
+                continue;
             }
         }
 
